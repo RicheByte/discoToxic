@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Discord Toxicity Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .main-content {
+            display: grid;
+            gap: 20px;
+        }
+
+        .sidebar {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+
+        .user-list {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .user-item {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .user-item:hover {
+            background-color: #f5f5f5;
+        }
+
+        .user-item:last-child {
+            border-bottom: none;
+        }
+
+        .toxicity-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+
+        .badge-low { background: #4CAF50; color: white; }
+        .badge-medium { background: #FF9800; color: white; }
+        .badge-high { background: #f44336; color: white; }
+        .badge-very-high { background: #9C27B0; color: white; }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-bottom: 20px;
+        }
+
+        .tab-container {
+            margin-bottom: 20px;
+        }
+
+        .tabs {
+            display: flex;
+            background: #f1f1f1;
+            border-radius: 10px;
+            padding: 5px;
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            text-align: center;
+            flex: 1;
+        }
+
+        .tab.active {
+            background: white;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .message-item {
+            padding: 10px;
+            border-left: 4px solid #ddd;
+            margin-bottom: 10px;
+            background: #f9f9f9;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .message-toxic { border-left-color: #f44336; }
+        .message-medium { border-left-color: #FF9800; }
+        .message-low { border-left-color: #4CAF50; }
+
+        .toxicity-score {
+            font-weight: bold;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚨 Discord Toxicity Dashboard</h1>
+            <p>Real-time monitoring and analysis of user behavior</p>
+        </div>
+
+        <div class="stats-grid" id="statsGrid">
+            <!-- Stats will be populated by JavaScript -->
+        </div>
+
+        <div class="dashboard">
+            <div class="main-content">
+                <div class="card">
+                    <div class="tabs">
+                        <div class="tab active" onclick="switchTab('overview')">Overview</div>
+                        <div class="tab" onclick="switchTab('users')">User Analysis</div>
+                        <div class="tab" onclick="switchTab('leaderboard')">Leaderboards</div>
+                    </div>
+
+                    <div id="overview-tab" class="tab-content active">
+                        <div class="chart-container">
+                            <canvas id="toxicityTrendChart"></canvas>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="toxicityDistributionChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div id="users-tab" class="tab-content">
+                        <div class="chart-container">
+                            <canvas id="userToxicityChart"></canvas>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="toxicityBreakdownChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div id="leaderboard-tab" class="tab-content">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                            <div>
+                                <h3>🏆 Most Toxic Users</h3>
+                                <div id="mostToxicList"></div>
+                            </div>
+                            <div>
+                                <h3>⭐ Least Toxic Users</h3>
+                                <div id="leastToxicList"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>📊 User Activity Timeline</h3>
+                    <div class="chart-container">
+                        <canvas id="activityTimelineChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar">
+                <div class="card">
+                    <h3>👥 Users List</h3>
+                    <div class="user-list" id="userList">
+                        <!-- Users will be populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- User Detail Modal -->
+        <div id="userModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 30px; border-radius: 15px; max-width: 800px; width: 90%; max-height: 90vh; overflow-y: auto;">
+                <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 20px;">
+                    <h2 id="modalUserName">User Details</h2>
+                    <button onclick="closeUserModal()" style="background: none; border: none; font-size: 1.5em; cursor: pointer;">×</button>
+                </div>
+                <div id="userModalContent">
+                    <!-- User details will be populated here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let charts = {};
+        let currentUserData = null;
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            loadOverview();
+            loadUsers();
+            setInterval(loadOverview, 30000); // Refresh every 30 seconds
+        });
+
+        function switchTab(tabName) {
+            // Update tabs
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(tabName + '-tab').classList.add('active');
+
+            // Load tab-specific data
+            if (tabName === 'leaderboard') {
+                loadLeaderboard();
+            } else if (tabName === 'users') {
+                loadUserAnalysis();
+            }
+        }
+
+        async function loadOverview() {
+            try {
+                const response = await fetch('/api/overview');
+                const data = await response.json();
+
+                // Update stats grid
+                const statsGrid = document.getElementById('statsGrid');
+                statsGrid.innerHTML = `
+                    <div class="stat-card">
+                        <div class="stat-number">${data.stats.total_users}</div>
+                        <div class="stat-label">Total Users</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${data.stats.total_messages}</div>
+                        <div class="stat-label">Total Messages</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${(data.stats.overall_toxicity * 100).toFixed(1)}%</div>
+                        <div class="stat-label">Avg Toxicity</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${data.stats.toxic_messages}</div>
+                        <div class="stat-label">Toxic Messages</div>
+                    </div>
+                `;
+
+                // Update charts
+                updateToxicityTrendChart(data.daily_activity);
+                updateToxicityDistributionChart(data.toxicity_distribution);
+            } catch (error) {
+                console.error('Error loading overview:', error);
+            }
+        }
+
+        async function loadUsers() {
+            try {
+                const response = await fetch('/api/users');
+                const users = await response.json();
+
+                const userList = document.getElementById('userList');
+                userList.innerHTML = users.map(user => `
+                    <div class="user-item" onclick="openUserModal(${user.user_id})">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <strong>${user.username}</strong>
+                            <span class="toxicity-badge badge-${user.toxicity_rank.toLowerCase().replace(' ', '-')}">
+                                ${user.toxicity_rank}
+                            </span>
+                        </div>
+                        <div style="font-size: 0.9em; color: #666;">
+                            ${user.total_messages} messages • ${(user.avg_toxicity * 100).toFixed(1)}% toxic
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading users:', error);
+            }
+        }
+
+        function updateToxicityTrendChart(dailyData) {
+            const ctx = document.getElementById('toxicityTrendChart').getContext('2d');
+            
+            if (charts.toxicityTrend) {
+                charts.toxicityTrend.destroy();
+            }
+
+            charts.toxicityTrend = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: dailyData.map(day => new Date(day.date).toLocaleDateString()),
+                    datasets: [
+                        {
+                            label: 'Average Toxicity',
+                            data: dailyData.map(day => day.avg_toxicity),
+                            borderColor: '#f44336',
+                            backgroundColor: 'rgba(244, 67, 54, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        },
+                        {
+                            label: 'Message Count',
+                            data: dailyData.map(day => day.message_count),
+                            borderColor: '#2196F3',
+                            backgroundColor: 'rgba(33, 150, 243, 0.1)',
+                            tension: 0.4,
+                            fill: true,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: 'Toxicity Score' }
+                        },
+                        y1: {
+                            position: 'right',
+                            beginAtZero: true,
+                            title: { display: true, text: 'Message Count' },
+                            grid: { drawOnChartArea: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateToxicityDistributionChart(distribution) {
+            const ctx = document.getElementById('toxicityDistributionChart').getContext('2d');
+            
+            if (charts.toxicityDistribution) {
+                charts.toxicityDistribution.destroy();
+            }
+
+            const colors = {
+                'Low': '#4CAF50',
+                'Medium': '#FF9800',
+                'High': '#f44336',
+                'Very High': '#9C27B0'
+            };
+
+            charts.toxicityDistribution = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: distribution.map(d => d.toxicity_level),
+                    datasets: [{
+                        data: distribution.map(d => d.count),
+                        backgroundColor: distribution.map(d => colors[d.toxicity_level]),
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' }
+                    }
+                }
+            });
+        }
+
+        async function openUserModal(userId) {
+            try {
+                const response = await fetch(`/api/user/${userId}`);
+                const userData = await response.json();
+                currentUserData = userData;
+
+                document.getElementById('modalUserName').textContent = userData.user_info.username;
+                document.getElementById('userModalContent').innerHTML = `
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+                        <div class="stat-card">
+                            <div class="stat-number">${userData.user_info.total_messages}</div>
+                            <div class="stat-label">Total Messages</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number">${(userData.user_info.avg_toxicity * 100).toFixed(1)}%</div>
+                            <div class="stat-label">Average Toxicity</div>
+                        </div>
+                    </div>
+
+                    <h3>Toxicity Breakdown</h3>
+                    <div class="chart-container">
+                        <canvas id="userToxicityBreakdownChart"></canvas>
+                    </div>
+
+                    <h3>Recent Messages</h3>
+                    <div style="max-height: 300px; overflow-y: auto;">
+                        ${userData.recent_messages.map(msg => `
+                            <div class="message-item ${getMessageClass(msg.toxicity_score)}">
+                                <div>${msg.content}</div>
+                                <div style="font-size: 0.8em; color: #666; margin-top: 5px;">
+                                    ${new Date(msg.timestamp).toLocaleString()} • 
+                                    Toxicity: <span class="toxicity-score" style="color: ${getToxicityColor(msg.toxicity_score)}">${(msg.toxicity_score * 100).toFixed(1)}%</span>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+
+                // Create breakdown chart
+                createUserBreakdownChart(userData.toxicity_breakdown);
+                
+                document.getElementById('userModal').style.display = 'block';
+            } catch (error) {
+                console.error('Error loading user details:', error);
+            }
+        }
+
+        function createUserBreakdownChart(breakdown) {
+            const ctx = document.getElementById('userToxicityBreakdownChart').getContext('2d');
+            
+            const data = {
+                labels: ['Toxicity', 'Severe Toxicity', 'Obscene', 'Threat', 'Insult', 'Identity Attack'],
+                datasets: [{
+                    data: [
+                        breakdown.toxicity,
+                        breakdown.severe_toxicity,
+                        breakdown.obscene,
+                        breakdown.threat,
+                        breakdown.insult,
+                        breakdown.identity_attack
+                    ],
+                    backgroundColor: [
+                        '#f44336', '#9C27B0', '#FF9800', 
+                        '#2196F3', '#4CAF50', '#FFC107'
+                    ]
+                }]
+            };
+
+            new Chart(ctx, {
+                type: 'radar',
+                data: data,
+                options: {
+                    responsive: true,
+                    scales: {
+                        r: {
+                            beginAtZero: true,
+                            max: 1
+                        }
+                    }
+                }
+            });
+        }
+
+        function closeUserModal() {
+            document.getElementById('userModal').style.display = 'none';
+        }
+
+        function getMessageClass(score) {
+            if (score > 0.7) return 'message-toxic';
+            if (score > 0.3) return 'message-medium';
+            return 'message-low';
+        }
+
+        function getToxicityColor(score) {
+            if (score > 0.7) return '#f44336';
+            if (score > 0.3) return '#FF9800';
+            return '#4CAF50';
+        }
+
+        async function loadLeaderboard() {
+            try {
+                const response = await fetch('/api/leaderboard');
+                const data = await response.json();
+
+                document.getElementById('mostToxicList').innerHTML = data.most_toxic.map(user => `
+                    <div class="user-item">
+                        <strong>${user.username}</strong>
+                        <div>${(user.avg_toxicity * 100).toFixed(1)}% toxic</div>
+                        <div style="font-size: 0.8em; color: #666;">${user.total_messages} messages</div>
+                    </div>
+                `).join('');
+
+                document.getElementById('leastToxicList').innerHTML = data.least_toxic.map(user => `
+                    <div class="user-item">
+                        <strong>${user.username}</strong>
+                        <div>${(user.avg_toxicity * 100).toFixed(1)}% toxic</div>
+                        <div style="font-size: 0.8em; color: #666;">${user.total_messages} messages</div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading leaderboard:', error);
+            }
+        }
+
+        async function loadUserAnalysis() {
+            // This would load user-specific analysis charts
+            // Implementation depends on specific requirements
+        }
+    </script>
+</body>
+</html>
